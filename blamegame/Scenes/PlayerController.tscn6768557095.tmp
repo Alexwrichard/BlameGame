@@ -1,0 +1,131 @@
+[gd_scene load_steps=10 format=3 uid="uid://drf55p4l65af8"]
+
+[ext_resource type="Script" uid="uid://chhjmwobubidb" path="res://Scripts/CharacterMotor.gd" id="1_rrwoe"]
+[ext_resource type="Resource" uid="uid://cqlre23qdlwcx" path="res://Resources/PostureStats.tres" id="2_kyqiw"]
+[ext_resource type="Texture2D" uid="uid://dtowooqi2swbh" path="res://Sprites/default.png" id="3_gntrk"]
+[ext_resource type="Script" uid="uid://bvm16tg5kiy0h" path="res://Scripts/PostureManager.gd" id="4_dewec"]
+[ext_resource type="Script" uid="uid://dw7fx3j72ykbb" path="res://Scripts/PlayerController.gd" id="5_a8u7r"]
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_6ph3s"]
+radius = 196.0
+height = 1010.0
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_gntrk"]
+size = Vector2(35, 1009)
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_dewec"]
+radius = 106.0
+height = 896.0
+
+[sub_resource type="CapsuleShape2D" id="CapsuleShape2D_5ixxa"]
+radius = 92.0
+height = 1098.0
+
+[node name="Player" type="CharacterBody2D"]
+script = ExtResource("1_rrwoe")
+speed = null
+accel = null
+friction = null
+jump_height = null
+time_to_jump = null
+time_to_fall = null
+terminal_velocity = null
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+texture = ExtResource("3_gntrk")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+root_node = NodePath("../Sprite2D")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+position = Vector2(28, 0)
+shape = SubResource("CapsuleShape2D_6ph3s")
+
+[node name="State Machine" type="Node" parent="."]
+
+[node name="Combat Pivot" type="Node2D" parent="."]
+
+[node name="Hurtbox" type="Area2D" parent="Combat Pivot"]
+
+[node name="HurtCollider" type="CollisionShape2D" parent="Combat Pivot/Hurtbox"]
+position = Vector2(28, 8.5)
+shape = SubResource("RectangleShape2D_gntrk")
+
+[node name="Hitbox" type="Area2D" parent="Combat Pivot"]
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Combat Pivot/Hitbox"]
+position = Vector2(484, -113)
+shape = SubResource("CapsuleShape2D_dewec")
+
+[node name="Parrybox" type="Area2D" parent="Combat Pivot"]
+position = Vector2(470, -166)
+monitoring = false
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Combat Pivot/Parrybox"]
+position = Vector2(-159, 135)
+shape = SubResource("CapsuleShape2D_5ixxa")
+
+[node name="ParryWindowTimer" type="Timer" parent="."]
+wait_time = 0.15
+
+[node name="LockoutTImer" type="Timer" parent="."]
+wait_time = 0.5
+
+[node name="RegenTimer" type="Timer" parent="."]
+one_shot = true
+
+[node name="CoyoteTimer" type="Timer" parent="."]
+wait_time = 0.15
+one_shot = true
+
+[node name="JumpBufferTimer" type="Timer" parent="."]
+wait_time = 0.1
+one_shot = true
+
+[node name="CoyotoeWallTimer" type="Timer" parent="."]
+wait_time = 0.15
+one_shot = true
+
+[node name="PostureManager" type="Node" parent="."]
+script = ExtResource("4_dewec")
+stats = ExtResource("2_kyqiw")
+
+[node name="PlayerController" type="Node" parent="."]
+script = ExtResource("5_a8u7r")
+
+[node name="RightHeadRay" type="RayCast2D" parent="."]
+position = Vector2(0, -450)
+target_position = Vector2(239, 0)
+collision_mask = 3
+hit_from_inside = true
+
+[node name="RightChestRay" type="RayCast2D" parent="."]
+position = Vector2(-1, -1)
+target_position = Vector2(239, 0)
+collision_mask = 3
+hit_from_inside = true
+
+[node name="RightFootRay" type="RayCast2D" parent="."]
+position = Vector2(-1, 480)
+target_position = Vector2(239, 0)
+collision_mask = 3
+hit_from_inside = true
+
+[node name="LeftFootRay" type="RayCast2D" parent="."]
+position = Vector2(-1, 480)
+target_position = Vector2(-239, 0)
+collision_mask = 3
+hit_from_inside = true
+
+[node name="LeftChestRay" type="RayCast2D" parent="."]
+position = Vector2(-1, -1)
+target_position = Vector2(-183, -1)
+collision_mask = 3
+hit_from_inside = true
+
+[node name="LeftHeadRay" type="RayCast2D" parent="."]
+position = Vector2(0, -450)
+target_position = Vector2(-239, 0)
+collision_mask = 3
+hit_from_inside = true

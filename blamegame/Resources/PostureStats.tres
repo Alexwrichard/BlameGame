@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="PostureStats" load_steps=2 format=3 uid="uid://cqlre23qdlwcx"]
+
+[ext_resource type="Script" uid="uid://caki0xxkn5jan" path="res://Scripts/PostureStats.gd" id="1_vhell"]
+
+[resource]
+script = ExtResource("1_vhell")
+max_posture = 100.0
+current_max_posture = 100.0
+guard_tap_cost = 2
+guard_sustain_drain = 1
+dash_tap_cost = 2
+dash_sustain_drain = 1
+hanging_drain = 0.1
+wall_run_drain = 1
+max_charging_drain = 1
+parry_gain = 5.0
+charging_gain = 5.0
