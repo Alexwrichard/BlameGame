@@ -42,9 +42,9 @@ func _process(delta):
 			return
 		gain_posture(stats.charging_gain * delta)
 		damage_max_posture(stats.max_charging_drain * delta)
-	if is_dashing:
-		if is_in_crisis: GameEvents.dash_sustain_failed.emit
-		damage_posture(stats.dash_sustain_drain * delta)
+	#if is_dashing:
+	#	if is_in_crisis: GameEvents.dash_sustain_failed.emit
+	#	damage_posture(stats.dash_sustain_drain * delta)
 
 
 func start_dash_sustain():
@@ -116,7 +116,9 @@ func apply_guard_tap_tax():
 
 func apply_dash_tap_tax():
 	if is_in_crisis: return
+	print(stats.dash_tap_cost)
 	damage_posture(stats.dash_tap_cost)
+	
 
 func _enter_crisis():
 	is_in_crisis = true

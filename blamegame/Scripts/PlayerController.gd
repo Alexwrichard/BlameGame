@@ -29,7 +29,7 @@ func _physics_process(delta: float):
 		
 	if Input.is_action_just_pressed("dash"):
 		motor.start_dash(hor_direction, ver_direction)
-	if Input.is_action_just_released("dash"):
-		motor.stop_dash()
+	#if Input.is_action_just_released("dash"):
+	#	motor.stop_dash()
 	
 	

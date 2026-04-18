@@ -14,6 +14,8 @@ class_name ActorMotor
 @export var jump_height: float = 1800
 @export var time_to_jump: float = 0.33
 @export var time_to_fall: float = 0.25
+@export var wall_jump_mult: float = .7
+@export var dash_impulse: float = 18000.0
 
 @export_group("Mantle System")
 @export var mantle_impulse_v: float = -4000.0 
@@ -24,6 +26,7 @@ class_name ActorMotor
 @export_group("Permissions")
 @export var wall_jump_max: int = 1
 @export var double_jump_max: int = 1
+@export var air_dash_max: int = 1
 @export var allow_wall_hang: bool = true
 @export var allow_wall_run: bool = true
 
@@ -42,6 +45,7 @@ var mantle_primed: bool = false
 var last_known_wall_side: int = 0
 var mantle_capable: bool = true
 var wall_run_start: bool = false
+var air_dash_count = 0
 
 # Nodes
 @onready var posture = $PostureManager
@@ -53,6 +57,7 @@ var wall_run_start: bool = false
 @onready var ray_foot_left = $LeftFootRay
 @onready var coyote_timer = $CoyoteTimer
 @onready var jump_buffer = $JumpBufferTimer
+@onready var dash_timer = $DashTimer
 
 # State Enums
 enum MovementState { IDLE, MOVE, JUMPING, AIRBORNE, WALL_RUN, WALL_HANG, WALL_SLIDE }
@@ -64,6 +69,7 @@ var current_action_state = ActionState.NONE
 func _ready():
 	_calculate_physics()
 	posture.charge_completed.connect(stop_charge)
+	dash_timer.timeout.connect(_on_dash_timer_timeout)
 	$AnimationPlayer.play("Idle")
 
 func _calculate_physics():
@@ -115,6 +121,7 @@ func stop_charge():
 ## --- INTERNAL PHYSICS LOGIC ---
 
 func _update_states(h_dir: float, v_dir: float):
+	if current_action_state == ActionState.DASH: return
 	var chest_colliding = _is_chest_colliding()
 	var feet_colliding = _is_feet_colliding()
 	var near_wall = _is_near_wall()
@@ -176,6 +183,7 @@ func _update_states(h_dir: float, v_dir: float):
 
 func _handle_vertical_movement(v_dir: float, delta: float):
 	# Apply controlled movement if in any active wall state
+	if current_action_state == ActionState.DASH: return
 	var is_wall_moving = current_move_state in [MovementState.WALL_RUN, MovementState.WALL_SLIDE]
 	
 	if is_wall_moving:
@@ -184,10 +192,14 @@ func _handle_vertical_movement(v_dir: float, delta: float):
 
 func _apply_gravity(is_jump_held: bool, h_dir: float, delta: float):
 	if is_on_floor():
-		velocity.y = 0
+		#velocity.y = 0
 		wall_jump_count = 0
 		double_jump_count = 0
 		last_wall_side = 0
+		air_dash_count = 0
+		return
+		
+	if not dash_timer.is_stopped():
 		return
 	
 	# Skip gravity for all wall states so handle_vertical_movement has full control
@@ -262,13 +274,15 @@ func _execute_wall_jump(wall_side: int):
 	wall_jump_count += 1
 	
 	# Apply forces
-	velocity.x = -wall_side * (abs(jump_velocity))
-	velocity.y = jump_velocity
+	velocity.x = -wall_side * (abs(jump_velocity)) * wall_jump_mult
+	velocity.y = jump_velocity * wall_jump_mult
 	
 	jump_buffer.stop()
 	coyote_timer.stop()
 
 func _handle_horizontal_movement(h_dir: float, delta: float):
+	if not dash_timer.is_stopped():
+		return
 	var effective_speed = speed
 	if (current_action_state == ActionState.GUARD or current_action_state == ActionState.ATTACK) and is_on_floor():
 		effective_speed *= 0
@@ -281,3 +295,35 @@ func _handle_horizontal_movement(h_dir: float, delta: float):
 		velocity.x = move_toward(velocity.x, h_dir * effective_speed, mult * delta)
 	else:
 		velocity.x = move_toward(velocity.x, 0, friction * delta)
+
+func start_dash(h_dir: float, v_dir: float):
+	if current_action_state == ActionState.DASH or posture.is_in_crisis: return
+	
+	# Air Dash Permission Check
+	if not is_on_floor():
+		if air_dash_count >= air_dash_max: return
+		air_dash_count += 1
+	
+	current_action_state = ActionState.DASH
+	posture.apply_dash_tap_tax()
+	# Directional Logic
+	if h_dir == 0 and v_dir == 0:
+		h_dir = last_known_wall_side if last_known_wall_side != 0 else 1.0
+	
+	var dash_vec = Vector2(h_dir, v_dir).normalized()
+	velocity = dash_vec * dash_impulse
+	
+	# Disable character collision
+	set_collision_mask_value(2, false)
+	
+	# Posture costs (if applicable)
+	posture.apply_dash_tap_tax()
+	
+	dash_timer.start()
+
+func _on_dash_timer_timeout():
+	current_action_state = ActionState.NONE
+	set_collision_mask_value(2, true)
+	
+	# Optional: "Snap" velocity to stop the instant the timer ends
+	velocity = velocity * 0.4

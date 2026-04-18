@@ -307,6 +307,10 @@ one_shot = true
 wait_time = 0.2
 one_shot = true
 
+[node name="DashTimer" type="Timer" parent="."]
+wait_time = 0.13
+one_shot = true
+
 [node name="PostureManager" type="Node" parent="."]
 script = ExtResource("4_dewec")
 stats = ExtResource("2_kyqiw")
