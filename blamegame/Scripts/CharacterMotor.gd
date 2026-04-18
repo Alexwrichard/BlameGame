@@ -2,36 +2,28 @@ extends CharacterBody2D
 class_name ActorMotor
 
 @export_group("Horizontal Movement")
-@export var speed = 6500.0
+@export var speed = 6000.0
 @export var accel = 6000.0
-@export var friction = 1000000.0
+@export var friction = 23000.0
 
 @export_group("Vertical Movement")
-@export var wall_run_mult = 13
+@export var wall_run_mult = 12
 @export var terminal_velocity: float = 100000.0 
 
 @export_group("Jump Geometry")
 @export var jump_height: float = 1800
-@export var time_to_jump: float = 0.40
+@export var time_to_jump: float = 0.33
 @export var time_to_fall: float = 0.25
-@export var wall_jump_reset_dist: float = 200.0
 
 @export_group("Mantle System")
-@export var mantle_impulse_v: float = -9000.0 
-@export var mantle_impulse_h: float = 3000.0   
-
-@export_group("Dash & Sustain")
-@export var dash_sustain_multiplier: float = 1.6 # Multiplier for base speed
-@export var dash_accel_multiplier: float = 2.0   # Makes the character snappier
-@export var dash_burst_speed: float = 30000.0  # High burst for "teleport" feel
-@export var dash_friction: float = 90000.0     # Extremely high to snap back
-@export var air_dash_count = 0
-@export var air_dash_max = 1
+@export var mantle_impulse_v: float = -4000.0 
+@export var mantle_impulse_h: float = 4500.0   
+@export var wall_jump_reset_dist: float = 200.0
 
 # Power Permissions
 @export_group("Permissions")
 @export var wall_jump_max: int = 1
-@export var double_jump_max: int = 3
+@export var double_jump_max: int = 1
 @export var allow_wall_hang: bool = true
 @export var allow_wall_run: bool = true
 
@@ -45,9 +37,6 @@ var last_wall_side = 0
 var was_on_floor = false
 var was_wall_running: bool = false
 var last_wall_jump_x: float = 0.0
-var dash_direction: Vector2 = Vector2.ZERO
-var is_dashing: bool = false
-
 var was_feet_colliding: bool = false
 var mantle_primed: bool = false
 var last_known_wall_side: int = 0
@@ -75,7 +64,6 @@ var current_action_state = ActionState.NONE
 func _ready():
 	_calculate_physics()
 	posture.charge_completed.connect(stop_charge)
-	posture.dash_sustain_failed.connect(stop_dash)
 	$AnimationPlayer.play("Idle")
 
 func _calculate_physics():
@@ -181,7 +169,6 @@ func _update_states(h_dir: float, v_dir: float):
 		var holding_toward = (h_dir == last_known_wall_side or h_dir == 0)
 		var moving_toward = (sign(velocity.x) == last_known_wall_side or velocity.x == 0)
 		if v_dir < 0 and holding_toward and moving_toward and jump_buffer.is_stopped():
-			print("holding towards ", holding_toward, "| moving_toward ", moving_toward)
 			_execute_mantle(h_dir)
 	if chest_colliding:
 		mantle_primed = false
@@ -196,42 +183,26 @@ func _handle_vertical_movement(v_dir: float, delta: float):
 		velocity.y = move_toward(velocity.y, v_dir * speed, mult * delta * wall_run_mult)
 
 func _apply_gravity(is_jump_held: bool, h_dir: float, delta: float):
-	# 1. FLOOR RESETS
 	if is_on_floor():
-		_reset_counters()
-		if not (current_action_state == ActionState.DASH and velocity.y < 0):
-			velocity.y = 0
-			return
+		velocity.y = 0
+		wall_jump_count = 0
+		double_jump_count = 0
+		last_wall_side = 0
+		return
+	
+	# Skip gravity for all wall states so handle_vertical_movement has full control
+	var is_wall_state = current_move_state in [MovementState.WALL_RUN, MovementState.WALL_HANG, MovementState.WALL_SLIDE]
+	
+	if is_wall_state:
+		velocity.y = 0
+		return
 
-	# 2. DETERMINE BURST STATUS
-	# We are "Bursting" if dashing and velocity is significantly higher than base speed
-	var is_bursting_h = abs(velocity.x) > (speed * 1.1)
-	var is_bursting_v = abs(velocity.y) > abs(jump_velocity) * 1.1
-	var currently_bursting = current_action_state == ActionState.DASH and (is_bursting_h or is_bursting_v)
-
-	# 3. APPLY FORCES
-	if currently_bursting:
-		# The Anime Snap: Pull towards BASE speed
-		velocity.x = move_toward(velocity.x, h_dir * speed, dash_friction * delta)
-		velocity.y = move_toward(velocity.y, 0, dash_friction * delta)
-		# While bursting, we don't apply gravity (Linear Trajectory)
-	else:
-		# Teleport is over! Gravity takes over.
-		if current_move_state in [MovementState.WALL_RUN, MovementState.WALL_HANG, MovementState.WALL_SLIDE]:
-			velocity.y = 0
-		else:
-			var gravity = jump_gravity if (velocity.y < 0 and is_jump_held) else fall_gravity
-			velocity.y += gravity * delta
-			velocity.y = min(velocity.y, terminal_velocity)
-			
-			# Wall Friction (Slide)
-			if _is_near_wall() and velocity.y > 0:
-				velocity.y = min(velocity.y, 1000.0)
-
-func _reset_counters():
-	double_jump_count = 0 
-	air_dash_count = 0
-	wall_jump_count = 0
+	var gravity = jump_gravity if (velocity.y < 0 and is_jump_held) else fall_gravity
+	velocity.y += gravity * delta
+	velocity.y = min(velocity.y, terminal_velocity)
+	
+	if _is_near_wall() and velocity.y > 0:
+		velocity.y = min(velocity.y, 1000.0)
 
 ## --- HELPERS & JUMP LOGIC ---
 
@@ -252,11 +223,6 @@ func _is_left_colliding() -> bool:
 
 func _execute_mantle(h_dir):
 	if last_known_wall_side == 0: return
-	
-	# IMPORTANT: Kill the dash immediately so the mantle impulse works
-	if current_action_state == ActionState.DASH:
-		stop_dash()
-	
 	mantle_primed = false
 	var push_dir = last_known_wall_side
 	velocity.y = mantle_impulse_v
@@ -303,52 +269,15 @@ func _execute_wall_jump(wall_side: int):
 	coyote_timer.stop()
 
 func _handle_horizontal_movement(h_dir: float, delta: float):
-	# Threshold check
-	var is_bursting = abs(velocity.x) > (speed * 1.1)
-	
-	# If we are in the middle of a high-speed teleport, do nothing.
-	# This lets _apply_gravity's friction do the work without interference.
-	if current_action_state == ActionState.DASH and is_bursting:
+	var effective_speed = speed
+	if (current_action_state == ActionState.GUARD or current_action_state == ActionState.ATTACK) and is_on_floor():
+		effective_speed *= 0
+	elif current_action_state == ActionState.CHARGE:
+		velocity.x = move_toward(velocity.x, 0, friction * delta)
 		return
-
-	# Once the speed drops, calculate Sustain
-	var can_sustain = current_action_state == ActionState.DASH and is_on_floor()
-	var effective_speed = speed * (dash_sustain_multiplier if can_sustain else 1.0)
 
 	if h_dir != 0:
 		var mult = (friction + accel) if (h_dir > 0 and velocity.x < 0) or (h_dir < 0 and velocity.x > 0) else accel
 		velocity.x = move_toward(velocity.x, h_dir * effective_speed, mult * delta)
 	else:
 		velocity.x = move_toward(velocity.x, 0, friction * delta)
-
-func start_dash(h_dir: float, v_dir: float):
-	if current_action_state == ActionState.DASH or posture.is_in_crisis: return
-	
-	if not is_on_floor():
-		if air_dash_count >= air_dash_max: return
-		air_dash_count += 1
-	
-	current_action_state = ActionState.DASH
-	
-	if h_dir == 0 and v_dir == 0:
-		h_dir = last_known_wall_side if last_known_wall_side != 0 else 1.0
-	
-	var dash_vec = Vector2(h_dir, v_dir).normalized()
-	
-	# The 'v_tune' helps match the perceived distance of Y vs X
-	var v_tune = 0.7 # Lower this until vertical dash distance matches horizontal
-	velocity.x = dash_vec.x * dash_burst_speed
-	velocity.y = dash_vec.y * dash_burst_speed * v_tune
-	
-	if is_on_floor() and v_dir < 0:
-		position.y -= 2.0 
-	
-	posture.apply_dash_tap_tax()
-	posture.start_dash_sustain()
-	set_collision_mask_value(2, false)
-
-func stop_dash():
-	if current_action_state == ActionState.DASH:
-		current_action_state = ActionState.NONE
-		posture.stop_dash_sustain()
-		set_collision_mask_value(2, true)
